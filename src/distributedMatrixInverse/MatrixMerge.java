@@ -8,7 +8,7 @@ import Jama.Matrix;
 import Jama.SingularValueDecomposition;
 
 public class MatrixMerge {
-	private int nRow = 5;
+	private int nRow = 7;
 	private int nColumn = 2;
 	private int nNodes = 1;
 	private Matrix[] matrixs;
@@ -55,38 +55,55 @@ public class MatrixMerge {
 	public Matrix getMergedMatrix(){
 		Matrix mergedMatrix = new Matrix(nColumn, nColumn, 0.0);
 		Queue<Matrix> vQueue = new LinkedList<Matrix>();
-		Queue<Matrix> sQueue = new LinkedList<Matrix>();
+		Queue<Matrix> lQueue = new LinkedList<Matrix>();
 		// add each svd result to queue
 		int mergedNum = matrixs.length;
 		SingularValueDecomposition tmpSVD = null;
 		for (int i = 0; i < mergedNum; i++) {
 			tmpSVD = matrixs[i].svd();
-			vQueue.add(tmpSVD.getV());
+			Matrix V = tmpSVD.getV();
 			Matrix S = tmpSVD.getS();
-			sQueue.add(tmpSVD.getS());
+			//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
+			// Lambda = S' * S, S is diagonal matrix
+			Matrix L = S.times(S);
+			vQueue.add(V);
+			lQueue.add(L);
 		}
 		// merge until one left
 		while(vQueue.size() > 1){
 			// queue size > 2
 			Matrix Vi = vQueue.poll();
 			Matrix Vj = vQueue.poll();
-			Matrix Si = sQueue.poll();
-			Matrix Sj = sQueue.poll();
+			Matrix Li = lQueue.poll();
+			Matrix Lj = lQueue.poll();
 			// Uq = svd(S_i^{-1/2}*V_i'*V_j*S_j^{1/2})
-			Matrix tmp1 = calDiagMatrixPower(Si,-0.5).times(Vi.transpose());
-			Matrix tmp2 = tmp1.times(Vj).times(calDiagMatrixPower(Sj, 0.5));
+			Matrix tmp1 = calDiagMatrixPower(Li,-0.5).times(Vi.transpose());
+			Matrix tmp2 = tmp1.times(Vj).times(calDiagMatrixPower(Lj, 0.5));
 			tmpSVD = tmp2.svd();
 			Matrix Uq = tmpSVD.getU();
 			Matrix Sq = tmpSVD.getS();
 			Matrix Identity = Matrix.identity(Sq.getRowDimension(), Sq.getColumnDimension());
 			// P^{-1} = (V_i*S_i^{1/2}*Uq)'
-			Matrix P = (Vi.times(calDiagMatrixPower(Si, 0.5)).times(Uq)).transpose();
+			Matrix P = (Vi.times(calDiagMatrixPower(Li, 0.5)).times(Uq)).transpose();
 			// M_{ij} = (P^{-1})'*(I+S_q*S_q')*P^{-1}
 			mergedMatrix = (P.transpose()).times(Identity.plus(Sq.times(Sq.transpose()))).times(P);
+
+//			mergedMatrix.print(nColumn, nColumn);
+//			tmp1 = matrixs[0].transpose().times(matrixs[0]);		
+//			tmp1.print(nColumn, nColumn);
+//			tmp2 = matrixs[1].transpose().times(matrixs[1]);
+//			Matrix tmp3 = tmp1.plus(tmp2);
+//			tmp3.print(nColumn, nColumn);
+//			tmp1 = Vi.times(Li).times(Vi.transpose());
+//			tmp1.print(nColumn, nColumn);
+//			tmp2 = Vj.times(Lj).times(Vj.transpose());
+//			tmp3 = tmp1.plus(tmp2);
+//			tmp3.print(nColumn, nColumn);
+			
 			// add svd merged result to queue
 			tmpSVD = mergedMatrix.svd();
 			vQueue.add(tmpSVD.getV());
-			sQueue.add(tmpSVD.getS());
+			lQueue.add(tmpSVD.getS().times(tmpSVD.getS()));
 		}
 		// the V and S of the final merged matrix stored in vQueue and sQueue 
 		mergedMatrix.print(nColumn, nColumn);
@@ -139,16 +156,17 @@ public class MatrixMerge {
 	private Matrix calDiagMatrixPower(Matrix S, double p){
 		int size = S.rank();
 		double element = 0.0;
+		Matrix res = S.copy();
 		for (int i = 0; i < size; i++) {
-			element = S.get(i, i);
+			element = res.get(i, i);
 			if(element != 0){
 				element = Math.pow(element, p);
-				S.set(i, i, element);
+				res.set(i, i, element);
 			}
 			else{
 				break; // others eigen values are zero
 			}
 		}
-		return S;
+		return res;
 	}
 }

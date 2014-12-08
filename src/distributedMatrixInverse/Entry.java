@@ -49,7 +49,7 @@ public class Entry {
 	
 	public static void main(String[] args) throws Exception {  
 		// local test
-		MatrixMerge matrixMerge = new MatrixMerge(3);
+		MatrixMerge matrixMerge = new MatrixMerge(2);
 		matrixMerge.compareMatrixResult();
 	}
 }
