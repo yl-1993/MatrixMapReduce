@@ -2,6 +2,7 @@ package distributedMatrixInverse;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.sql.NClob;
 import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -17,9 +18,9 @@ import Jama.SingularValueDecomposition;
  *
  */
 public class MatrixMerge {
-	private int nRow = 7;
+	private int nRow = 12;
 	private int nColumn = 2;
-	private int nNodes = 1;
+	private int nNodes = 7;
 	String logFileName = "log.txt";
 	private Matrix[] matrixs;
 	
@@ -33,7 +34,7 @@ public class MatrixMerge {
 			generateRandomMatrics();
 		}
 		else{
-			System.out.println("Node number should be larger than zero");
+			System.out.println("Node number should be larger than zero!");
 		}
 	}
 	
@@ -45,7 +46,7 @@ public class MatrixMerge {
 			generateRandomMatrics();
 		}
 		else{
-			System.out.println("Node number, row number and column number should be larger than zero");
+			System.out.println("Node number, row number and column number should be larger than zero!");
 		}
 	}
 	
@@ -55,7 +56,7 @@ public class MatrixMerge {
 			nNodes = node;
 		}
 		else{
-			System.out.println("Node number and matrix number should be larger than zero");
+			System.out.println("Node number and matrix number should be larger than zero!");
 		}
 	}
 	
@@ -65,11 +66,42 @@ public class MatrixMerge {
 	 * @param node
 	 */
 	public MatrixMerge(Matrix bigMatrix, int node) {
-		if(node >= 1 ){
+		if(node >= 1 && bigMatrix != null){
 			nNodes = node;
+			nRow = bigMatrix.getRowDimension();
+			nColumn = bigMatrix.getColumnDimension();
+			int aveRow = calAverageRow();
+			int lastRow = calLastRow(aveRow);
+			if(lastRow > 0){
+				matrixs = new Matrix[nNodes];
+			}
+			else{
+				matrixs = new Matrix[nNodes - 1];
+			}
+			// split up the big matrix
+			int[] colArr = new int[nColumn];
+			for (int i = 0; i < colArr.length; i++) {
+				colArr[i] = i;
+			}
+			// matrix in first n-1 computer node
+			for (int i = 0; i < node-1; i++) {
+				int[] rowArr = new int[aveRow];
+				for (int j = 0; j < rowArr.length; j++) {
+					rowArr[j] = i*aveRow + j;
+				}
+				matrixs[i] = bigMatrix.getMatrix(rowArr, colArr);
+			}
+			// matrix in last(n) computer node
+			if(lastRow > 0){
+				int[] rowArr = new int[lastRow];
+				for (int i = 0; i < rowArr.length; i++) {
+					rowArr[i] = (node - 1)*aveRow+ i;
+				}
+				matrixs[node-1] = bigMatrix.getMatrix(rowArr, colArr);
+			}
 		}
 		else{
-			System.out.println("Node number and matrix number should be larger than zero");
+			System.out.println("Node number should be larger than zero and bigMatrix should not be null!");
 		}
 	}
 	
@@ -100,19 +132,18 @@ public class MatrixMerge {
 			// P^{-1} = (V_i*S_i^{1/2}*Uq)'
 			Matrix P = (Vi.times(calDiagMatrixPower(Li, 0.5)).times(Uq)).transpose();
 			// M_{ij} = (P^{-1})'*(I+S_q*S_q')*P^{-1}
-			mergedMatrix = (P.transpose()).times(Identity.plus(Sq.times(Sq.transpose()))).times(P);
+			mergedMatrix = (P.transpose()).times(Identity.plus(Sq.times(Sq))).times(P);
 
-//			mergedMatrix.print(nColumn, nColumn);
+			mergedMatrix.print(nColumn, nColumn);
 //			tmp1 = matrixs[0].transpose().times(matrixs[0]);		
 //			tmp1.print(nColumn, nColumn);
 //			tmp2 = matrixs[1].transpose().times(matrixs[1]);
 //			Matrix tmp3 = tmp1.plus(tmp2);
 //			tmp3.print(nColumn, nColumn);
-//			tmp1 = Vi.times(Li).times(Vi.transpose());
+			tmp1 = Vi.times(Li).times(Vi.transpose());
 //			tmp1.print(nColumn, nColumn);
-//			tmp2 = Vj.times(Lj).times(Vj.transpose());
-//			tmp3 = tmp1.plus(tmp2);
-//			tmp3.print(nColumn, nColumn);
+			tmp2 = Vj.times(Lj).times(Vj.transpose());
+			tmp1.plus(tmp2).print(nColumn, nColumn);
 			
 			// add svd merged result to queue
 			tmpSVD = mergedMatrix.svd();
@@ -131,6 +162,7 @@ public class MatrixMerge {
 		int mergedNum = matrixs.length;
 		for (int i = 0; i < mergedNum; i++) {
 			directMatrix.plusEquals((matrixs[i].transpose()).times(matrixs[i]));
+			//directMatrix.print(nColumn, nColumn);
 		}
 		directMatrix.print(nColumn, nColumn);
 		return directMatrix;
@@ -161,16 +193,22 @@ public class MatrixMerge {
 	}
 	
 	private void generateRandomMatrics(){
-		matrixs = new Matrix[nNodes];
-		int mergedNum = matrixs.length;
 		int aveRow = calAverageRow();
+		int lastRow = calLastRow(aveRow);
+		if(lastRow > 0){
+			matrixs = new Matrix[nNodes];
+		}
+		else{
+			matrixs = new Matrix[nNodes - 1];
+		}
 		// matrix in first n-1 computer node
-		for (int i = 0; i < mergedNum-1; i++) {
+		for (int i = 0; i < nNodes-1; i++) {
 			matrixs[i] = Matrix.random(aveRow, nColumn);
 		}
 		// matrix in last(n) computer node
-		int lastRow = getLastRow(aveRow);
-		matrixs[mergedNum-1] = Matrix.random(lastRow, nColumn);
+		if(lastRow > 0){
+			matrixs[nNodes-1] = Matrix.random(lastRow, nColumn);
+		}
 	}
 	
 	private Matrix calDiagMatrixPower(Matrix S, double p){
@@ -224,32 +262,35 @@ public class MatrixMerge {
 				lQueue.add(L);
 			}
 		}
-		if(nColumn>getLastRow(calAverageRow())){
-			tmpSVD = matrixs[i].transpose().svd();
-			Matrix V = tmpSVD.getU();
-			Matrix S = tmpSVD.getS();
-			//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
-			// Lambda = S' * S, S is diagonal matrix
-			Matrix L = S.times(S);
-			vQueue.add(V);
-			lQueue.add(L);
-		} else{
-			tmpSVD = matrixs[i].svd();
-			Matrix V = tmpSVD.getV();
-			Matrix S = tmpSVD.getS();
-			//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
-			// Lambda = S' * S, S is diagonal matrix
-			Matrix L = S.times(S);
-			vQueue.add(V);
-			lQueue.add(L);
+		int lastRow = calLastRow(calAverageRow());
+		if(lastRow > 0){
+			if(nColumn > lastRow + 1){
+				tmpSVD = matrixs[nNodes-1].transpose().svd();
+				Matrix V = tmpSVD.getU();
+				Matrix S = tmpSVD.getS();
+				//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
+				// Lambda = S' * S, S is diagonal matrix
+				Matrix L = S.times(S);
+				vQueue.add(V);
+				lQueue.add(L);
+			} else{
+				tmpSVD = matrixs[nNodes-1].svd();
+				Matrix V = tmpSVD.getV();
+				Matrix S = tmpSVD.getS();
+				//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
+				// Lambda = S' * S, S is diagonal matrix
+				Matrix L = S.times(S);
+				vQueue.add(V);
+				lQueue.add(L);
+			}
 		}
 	}
 	
 	private boolean isTransposed(){
-		return nColumn>calAverageRow()?true:false;
+		return nColumn>calAverageRow()+1?true:false;
 	}
 	
-	private int getLastRow(int aveRow){
+	private int calLastRow(int aveRow){
 		return nRow - aveRow*(nNodes - 1);
 	}
 	
@@ -274,8 +315,10 @@ public class MatrixMerge {
 	
 	private String getOutputInfo(double accuracy, double time){
 		String content = "##### matrixMerged-log-"+getLogDate() + " begin #####\r\n" + 
-							"nRow:\t\t"+ nRow + "\r\n"+
-							"nColumn:\t"+ nColumn + "\r\n"+"nComputer:\t"+ nNodes + "\r\n"+ 
+							"nRow:\t\t"+ nRow + "\r\n"+ "nColumn:\t"+ nColumn + 
+							"\r\n"+"nComputer:\t"+ nNodes +  
+							"\r\n"+"aveRow:\t\t"+ calAverageRow() +
+							"\r\n"+"lastRow:\t"+ calLastRow(calAverageRow()) + "\r\n"+ 
 							"Accuracy:\t"+ accuracy + "\r\n"+"Time:\t\t" + time + "ms"+ "\r\n" + 
 							"##### matrixMerged-log-"+getLogDate() + " end #####\r\n";
 		return content;
