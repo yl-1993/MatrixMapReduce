@@ -1,6 +1,5 @@
 package distributedMatrixInverse;
 
-import java.security.Identity;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -23,7 +22,7 @@ public class MatrixMerge {
 			generateRandomMatrics();
 		}
 		else{
-			// handle mistakes
+			System.out.println("Node number should be larger than zero");
 		}
 	}
 	
@@ -35,7 +34,7 @@ public class MatrixMerge {
 			generateRandomMatrics();
 		}
 		else{
-			//
+			System.out.println("Node number, row number and column number should be larger than zero");
 		}
 	}
 	
@@ -45,7 +44,7 @@ public class MatrixMerge {
 			nNodes = node;
 		}
 		else{
-			//
+			System.out.println("Node number and matrix number should be larger than zero");
 		}
 	}
 	
@@ -115,7 +114,7 @@ public class MatrixMerge {
 	public Matrix getDirectMatrix(){
 		Matrix directMatrix = new Matrix(nColumn, nColumn, 0.0);
 		int mergedNum = matrixs.length;
-		for (int i = 0; i < mergedNum-1; i++) {
+		for (int i = 0; i < mergedNum; i++) {
 			directMatrix.plusEquals((matrixs[i].transpose()).times(matrixs[i]));
 		}
 		directMatrix.print(nColumn, nColumn);
