@@ -9,6 +9,13 @@ import java.util.Queue;
 import Jama.Matrix;
 import Jama.SingularValueDecomposition;
 
+/**
+ * 
+ * The algorithm proposed by Hongliang Guo to handle large matrix inversion
+ * This method is suitable for matrix with not very large row number and prohibitively large column number
+ * @author Lei Yang (Jerryyanglei@gmail.com)
+ *
+ */
 public class MatrixMerge {
 	private int nRow = 7;
 	private int nColumn = 2;
@@ -52,26 +59,30 @@ public class MatrixMerge {
 		}
 	}
 	
+	/**
+	 * Break the big matrix into nNodes matrix
+	 * @param directMatrix
+	 * @param node
+	 */
+	public MatrixMerge(Matrix bigMatrix, int node) {
+		if(node >= 1 ){
+			nNodes = node;
+		}
+		else{
+			System.out.println("Node number and matrix number should be larger than zero");
+		}
+	}
+	
 	////////////////////////////////
 	// This function has been set as public
 	// you can get the merged result from outside
 	public Matrix getMergedMatrix(){
 		Matrix mergedMatrix = new Matrix(nColumn, nColumn, 0.0);
+		SingularValueDecomposition tmpSVD = null;
 		Queue<Matrix> vQueue = new LinkedList<Matrix>();
 		Queue<Matrix> lQueue = new LinkedList<Matrix>();
 		// add each svd result to queue
-		int mergedNum = matrixs.length;
-		SingularValueDecomposition tmpSVD = null;
-		for (int i = 0; i < mergedNum; i++) {
-			tmpSVD = matrixs[i].svd();
-			Matrix V = tmpSVD.getV();
-			Matrix S = tmpSVD.getS();
-			//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
-			// Lambda = S' * S, S is diagonal matrix
-			Matrix L = S.times(S);
-			vQueue.add(V);
-			lQueue.add(L);
-		}
+		addSVDResultToQueue(vQueue, lQueue);
 		// merge until one left
 		while(vQueue.size() > 1){
 			// queue size > 2
@@ -142,6 +153,7 @@ public class MatrixMerge {
 	private int calAverageRow(){
 		int aveRow = nRow/nNodes;
 		double decimal = (nRow*1.0)/nNodes - aveRow;
+		// round to the nearest number
 		if(decimal >= 0.5){
 			aveRow = aveRow + 1;
 		}
@@ -157,7 +169,7 @@ public class MatrixMerge {
 			matrixs[i] = Matrix.random(aveRow, nColumn);
 		}
 		// matrix in last(n) computer node
-		int lastRow = nRow - aveRow*(mergedNum - 1);
+		int lastRow = getLastRow(aveRow);
 		matrixs[mergedNum-1] = Matrix.random(lastRow, nColumn);
 	}
 	
@@ -176,6 +188,69 @@ public class MatrixMerge {
 			}
 		}
 		return res;
+	}
+	
+	/**
+	 * 
+	 * @param vQueue
+	 * @param lQueue
+	 */
+	private  void addSVDResultToQueue(Queue<Matrix> vQueue, Queue<Matrix> lQueue){
+		int mergedNum = matrixs.length;
+		SingularValueDecomposition tmpSVD = null;
+		if(isTransposed()){
+			// aveRow < column
+			for (int i = 0; i < mergedNum-1; i++) {
+				tmpSVD = matrixs[i].transpose().svd();
+				Matrix V = tmpSVD.getU();
+				Matrix S = tmpSVD.getS();
+				//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
+				// Lambda = S' * S, S is diagonal matrix
+				Matrix L = S.times(S);
+				vQueue.add(V);
+				lQueue.add(L);
+			}
+		}
+		else{
+			// aveRow >= column
+			for (int i = 0; i < mergedNum-1; i++) {
+				tmpSVD = matrixs[i].svd();
+				Matrix V = tmpSVD.getV();
+				Matrix S = tmpSVD.getS();
+				//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
+				// Lambda = S' * S, S is diagonal matrix
+				Matrix L = S.times(S);
+				vQueue.add(V);
+				lQueue.add(L);
+			}
+		}
+		if(nColumn>getLastRow(calAverageRow())){
+			tmpSVD = matrixs[i].transpose().svd();
+			Matrix V = tmpSVD.getU();
+			Matrix S = tmpSVD.getS();
+			//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
+			// Lambda = S' * S, S is diagonal matrix
+			Matrix L = S.times(S);
+			vQueue.add(V);
+			lQueue.add(L);
+		} else{
+			tmpSVD = matrixs[i].svd();
+			Matrix V = tmpSVD.getV();
+			Matrix S = tmpSVD.getS();
+			//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
+			// Lambda = S' * S, S is diagonal matrix
+			Matrix L = S.times(S);
+			vQueue.add(V);
+			lQueue.add(L);
+		}
+	}
+	
+	private boolean isTransposed(){
+		return nColumn>calAverageRow()?true:false;
+	}
+	
+	private int getLastRow(int aveRow){
+		return nRow - aveRow*(nNodes - 1);
 	}
 	
 	/**
