@@ -1,5 +1,8 @@
 package distributedMatrixInverse;
 
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -10,6 +13,7 @@ public class MatrixMerge {
 	private int nRow = 7;
 	private int nColumn = 2;
 	private int nNodes = 1;
+	String logFileName = "log.txt";
 	private Matrix[] matrixs;
 	
 	public MatrixMerge() {
@@ -122,12 +126,17 @@ public class MatrixMerge {
 	}
 	
 	public void compareMatrixResult(){
+		// record the start time
+		long startTime = System.nanoTime();
 		// calculate the Frobenius norm difference
-		double result = Math.abs(getMergedMatrix().normF() 
+		double accuracy = Math.abs(getMergedMatrix().normF() 
 				- getDirectMatrix().normF());
+		// record the algorithm time (ms)
+		double time = (System.nanoTime() - startTime)/1000/1000;
 		// output the result to console
-		System.out.println("Result:"+ result);
+		System.out.println(getOutputInfo(accuracy,time));
 		// output the result to file
+		outputResultToFile(accuracy, time);
 	}
 	
 	private int calAverageRow(){
@@ -167,5 +176,47 @@ public class MatrixMerge {
 			}
 		}
 		return res;
+	}
+	
+	/**
+	 * 
+	 * Record the detail information to log file
+	 * 
+	 * @param accuracy
+	 * @param time
+	 */
+	private void outputResultToFile(double accuracy, double time){
+		try {
+			String content = getOutputInfo(accuracy, time);
+			FileWriter writer = new FileWriter(logFileName, true);
+			writer.write(content);
+			writer.close();
+		}catch (IOException e){
+			e.printStackTrace();
+			
+		}
+	}
+	
+	private String getOutputInfo(double accuracy, double time){
+		String content = "##### matrixMerged-log-"+getLogDate() + " begin #####\r\n" + 
+							"nRow:\t\t"+ nRow + "\r\n"+
+							"nColumn:\t"+ nColumn + "\r\n"+"nComputer:\t"+ nNodes + "\r\n"+ 
+							"Accuracy:\t"+ accuracy + "\r\n"+"Time:\t\t" + time + "ms"+ "\r\n" + 
+							"##### matrixMerged-log-"+getLogDate() + " end #####\r\n";
+		return content;
+	}
+	
+	private String getLogDate(){
+		String date = "";
+		int y,m,d,h,mi,s;    
+		Calendar cal=Calendar.getInstance();    
+		y=cal.get(Calendar.YEAR);    
+		m=cal.get(Calendar.MONTH);    
+		d=cal.get(Calendar.DATE);    
+		h=cal.get(Calendar.HOUR_OF_DAY);    
+		mi=cal.get(Calendar.MINUTE);    
+		s=cal.get(Calendar.SECOND);
+		date = m+"/"+d+"/"+y+" "+h+":"+mi+":"+s;
+		return date;
 	}
 }

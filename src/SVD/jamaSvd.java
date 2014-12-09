@@ -28,6 +28,12 @@ public class jamaSvd {
 	      System.out.print("V = ");
 	      Matrix V = s.getV();
 	      V.print(9, 6);
+	      Matrix tmpMatrix = U.times(S).times(V.transpose());
+	      tmpMatrix.print(9, 6);
+	      
+	      A.transpose().times(A).print(6,6);
+	      V.times(S.times(S)).times(V.transpose()).print(6, 6);
+	      
 	      System.out.println("rank = " + s.rank());
 	      System.out.println("condition number = " + s.cond());
 	      System.out.println("2-norm = " + s.norm2());
