@@ -17,9 +17,9 @@ import Jama.SingularValueDecomposition;
  *
  */
 public class MatrixMerge {
-	private int nRow = 10;
-	private int nColumn = 6;
-	private int nNodes = 3;
+	private int nRow = 12;
+	private int nColumn = 4;
+	private int nNodes = 7;
 	String logFileName = "log.txt";
 	private Matrix[] matrixs;
 	
@@ -51,6 +51,7 @@ public class MatrixMerge {
 	
 	public MatrixMerge(Matrix[] matrixList, int node) {
 		if(node >= 1 && matrixList.length >= 1){
+			// TODO: check the dimension of the input matrix
 			matrixs = matrixList;
 			nNodes = node;
 		}
@@ -129,10 +130,8 @@ public class MatrixMerge {
 			Matrix Uq = null;
 			tmpSVD = tmp2.transpose().svd();
 			Uq = tmpSVD.getV();
-			if(!isTransposed(tmp2)){
-				tmpSVD = tmp2.svd(); // to make sure the success of getS()
-			}
-			Matrix Sq = tmpSVD.getS();
+			Matrix Sq = setSingularValue(tmpSVD.getSingularValues(), Uq.getRowDimension());
+			
 			Matrix Identity = Matrix.identity(Sq.getRowDimension(), Sq.getColumnDimension());
 			// P^{-1} = (V_i*S_i^{1/2}*Uq)'
 			Matrix P = (Vi.times(calDiagMatrixPower(Li, 0.5)).times(Uq)).transpose();
@@ -248,54 +247,30 @@ public class MatrixMerge {
 	private  void addSVDResultToQueue(Queue<Matrix> vQueue, Queue<Matrix> lQueue){
 		int mergedNum = matrixs.length;
 		SingularValueDecomposition tmpSVD = null;
-		if(isTransposed()){
-			// aveRow < column
-			for (int i = 0; i < mergedNum-1; i++) {
-				tmpSVD = matrixs[i].transpose().svd();
-				Matrix V = tmpSVD.getU();
-				Matrix S = tmpSVD.getS();
-				//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
-				// Lambda = S' * S, S is diagonal matrix
-				Matrix L = S.times(S);
-				vQueue.add(V);
-				lQueue.add(L);
+		for (int i = 0; i < mergedNum; i++) {
+			tmpSVD = matrixs[i].svd();
+			Matrix V = tmpSVD.getV();
+			Matrix S = setSingularValue(tmpSVD.getSingularValues(), V.getRowDimension());
+			//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
+			// Lambda = S' * S, S is diagonal matrix
+			Matrix L = S.times(S);
+			vQueue.add(V);
+			lQueue.add(L);
+		}
+	}
+	
+	private Matrix setSingularValue(double[] sValue,int dimension){
+		Matrix S = new Matrix(dimension, dimension);
+		int rank = sValue.length;
+		for (int i = 0; i < dimension; i++) {
+			if(i<rank){
+				S.set(i, i, sValue[i]);
+			}
+			else{
+				S.set(i, i, 0.0);
 			}
 		}
-		else{
-			// aveRow >= column
-			for (int i = 0; i < mergedNum-1; i++) {
-				tmpSVD = matrixs[i].svd();
-				Matrix V = tmpSVD.getV();
-				Matrix S = tmpSVD.getS();
-				//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
-				// Lambda = S' * S, S is diagonal matrix
-				Matrix L = S.times(S);
-				vQueue.add(V);
-				lQueue.add(L);
-			}
-		}
-		int lastRow = calLastRow(calAverageRow());
-		if(lastRow > 0){
-			if(nColumn > lastRow + 1){
-				tmpSVD = matrixs[nNodes-1].transpose().svd();
-				Matrix V = tmpSVD.getU();
-				Matrix S = tmpSVD.getS();
-				//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
-				// Lambda = S' * S, S is diagonal matrix
-				Matrix L = S.times(S);
-				vQueue.add(V);
-				lQueue.add(L);
-			} else{
-				tmpSVD = matrixs[nNodes-1].svd();
-				Matrix V = tmpSVD.getV();
-				Matrix S = tmpSVD.getS();
-				//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
-				// Lambda = S' * S, S is diagonal matrix
-				Matrix L = S.times(S);
-				vQueue.add(V);
-				lQueue.add(L);
-			}
-		}
+		return S;
 	}
 	
 	private boolean isTransposed(){
