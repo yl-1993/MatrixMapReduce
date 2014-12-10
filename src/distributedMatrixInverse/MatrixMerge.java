@@ -2,7 +2,6 @@ package distributedMatrixInverse;
 
 import java.io.FileWriter;
 import java.io.IOException;
-import java.sql.NClob;
 import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -18,9 +17,9 @@ import Jama.SingularValueDecomposition;
  *
  */
 public class MatrixMerge {
-	private int nRow = 12;
-	private int nColumn = 2;
-	private int nNodes = 7;
+	private int nRow = 10;
+	private int nColumn = 6;
+	private int nNodes = 3;
 	String logFileName = "log.txt";
 	private Matrix[] matrixs;
 	
@@ -116,8 +115,10 @@ public class MatrixMerge {
 		// add each svd result to queue
 		addSVDResultToQueue(vQueue, lQueue);
 		// merge until one left
+		int num = 0;
+		Matrix tmp3 = matrixs[num].transpose().times(matrixs[num]);
 		while(vQueue.size() > 1){
-			// queue size > 2
+			// queue size >= 2
 			Matrix Vi = vQueue.poll();
 			Matrix Vj = vQueue.poll();
 			Matrix Li = lQueue.poll();
@@ -125,8 +126,12 @@ public class MatrixMerge {
 			// Uq = svd(S_i^{-1/2}*V_i'*V_j*S_j^{1/2})
 			Matrix tmp1 = calDiagMatrixPower(Li,-0.5).times(Vi.transpose());
 			Matrix tmp2 = tmp1.times(Vj).times(calDiagMatrixPower(Lj, 0.5));
-			tmpSVD = tmp2.svd();
-			Matrix Uq = tmpSVD.getU();
+			Matrix Uq = null;
+			tmpSVD = tmp2.transpose().svd();
+			Uq = tmpSVD.getV();
+			if(!isTransposed(tmp2)){
+				tmpSVD = tmp2.svd(); // to make sure the success of getS()
+			}
 			Matrix Sq = tmpSVD.getS();
 			Matrix Identity = Matrix.identity(Sq.getRowDimension(), Sq.getColumnDimension());
 			// P^{-1} = (V_i*S_i^{1/2}*Uq)'
@@ -134,21 +139,26 @@ public class MatrixMerge {
 			// M_{ij} = (P^{-1})'*(I+S_q*S_q')*P^{-1}
 			mergedMatrix = (P.transpose()).times(Identity.plus(Sq.times(Sq))).times(P);
 
-			mergedMatrix.print(nColumn, nColumn);
-//			tmp1 = matrixs[0].transpose().times(matrixs[0]);		
-//			tmp1.print(nColumn, nColumn);
-//			tmp2 = matrixs[1].transpose().times(matrixs[1]);
-//			Matrix tmp3 = tmp1.plus(tmp2);
-//			tmp3.print(nColumn, nColumn);
+			System.out.println("my:");
+			mergedMatrix.print(nColumn, nColumn); 		
+			tmp2 = matrixs[num+1].transpose().times(matrixs[num+1]);
+//			num++;
+//			tmp3.plusEquals(tmp2);
+			System.out.println("correct1:");
+			tmp3.print(nColumn, nColumn);
+			tmp2.print(nColumn, nColumn);
+			
+			System.out.println("correct2:");
 			tmp1 = Vi.times(Li).times(Vi.transpose());
-//			tmp1.print(nColumn, nColumn);
+			tmp1.print(nColumn, nColumn);
 			tmp2 = Vj.times(Lj).times(Vj.transpose());
+			tmp2.print(nColumn, nColumn);
 			tmp1.plus(tmp2).print(nColumn, nColumn);
 			
-			// add svd merged result to queue
+			// add svd merged result to queue (eigenvalue decomposition can also be used here)
 			tmpSVD = mergedMatrix.svd();
 			vQueue.add(tmpSVD.getV());
-			lQueue.add(tmpSVD.getS().times(tmpSVD.getS()));
+			lQueue.add(tmpSVD.getS());
 		}
 		// the V and S of the final merged matrix stored in vQueue and sQueue 
 		mergedMatrix.print(nColumn, nColumn);
@@ -160,9 +170,10 @@ public class MatrixMerge {
 	public Matrix getDirectMatrix(){
 		Matrix directMatrix = new Matrix(nColumn, nColumn, 0.0);
 		int mergedNum = matrixs.length;
+		System.out.println("direct:");
 		for (int i = 0; i < mergedNum; i++) {
 			directMatrix.plusEquals((matrixs[i].transpose()).times(matrixs[i]));
-			//directMatrix.print(nColumn, nColumn);
+			directMatrix.print(nColumn, nColumn);
 		}
 		directMatrix.print(nColumn, nColumn);
 		return directMatrix;
@@ -171,11 +182,12 @@ public class MatrixMerge {
 	public void compareMatrixResult(){
 		// record the start time
 		long startTime = System.nanoTime();
-		// calculate the Frobenius norm difference
-		double accuracy = Math.abs(getMergedMatrix().normF() 
-				- getDirectMatrix().normF());
+		Matrix mergedMatrix = getMergedMatrix();
 		// record the algorithm time (ms)
 		double time = (System.nanoTime() - startTime)/1000/1000;
+		// calculate the Frobenius norm difference
+		double accuracy = Math.abs(mergedMatrix.normF() 
+				- getDirectMatrix().normF());
 		// output the result to console
 		System.out.println(getOutputInfo(accuracy,time));
 		// output the result to file
@@ -290,6 +302,10 @@ public class MatrixMerge {
 		return nColumn>calAverageRow()+1?true:false;
 	}
 	
+	private boolean isTransposed(Matrix m){
+		return m.getColumnDimension()>m.getRowDimension()+1?true:false;
+	}
+	
 	private int calLastRow(int aveRow){
 		return nRow - aveRow*(nNodes - 1);
 	}
@@ -320,7 +336,7 @@ public class MatrixMerge {
 							"\r\n"+"aveRow:\t\t"+ calAverageRow() +
 							"\r\n"+"lastRow:\t"+ calLastRow(calAverageRow()) + "\r\n"+ 
 							"Accuracy:\t"+ accuracy + "\r\n"+"Time:\t\t" + time + "ms"+ "\r\n" + 
-							"##### matrixMerged-log-"+getLogDate() + " end #####\r\n";
+							"##### matrixMerged-log-"+getLogDate() + " end #####\r\n\r\n";
 		return content;
 	}
 	
