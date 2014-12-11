@@ -6,6 +6,9 @@ import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.Queue;
 
+import org.ejml.data.Matrix64F;
+import org.ejml.data.SimpleMatrix;
+
 import Jama.Matrix;
 import Jama.SingularValueDecomposition;
 
@@ -17,9 +20,10 @@ import Jama.SingularValueDecomposition;
  *
  */
 public class MatrixMerge {
-	private int nRow = 12;
-	private int nColumn = 4;
-	private int nNodes = 7;
+	private int nRow = 9;
+	private int nColumn = 2;
+	private int nNodes = 3;
+	String inputFileName = "input.txt";
 	String logFileName = "log.txt";
 	private Matrix[] matrixs;
 	
@@ -121,16 +125,32 @@ public class MatrixMerge {
 		while(vQueue.size() > 1){
 			// queue size >= 2
 			Matrix Vi = vQueue.poll();
-			Matrix Vj = vQueue.poll();
 			Matrix Li = lQueue.poll();
+			Vi = checkMatrixRank(Vi,Li);
+			Matrix Vj = vQueue.poll();
 			Matrix Lj = lQueue.poll();
+			Vj = checkMatrixRank(Vj,Lj);
 			// Uq = svd(S_i^{-1/2}*V_i'*V_j*S_j^{1/2})
 			Matrix tmp1 = calDiagMatrixPower(Li,-0.5).times(Vi.transpose());
 			Matrix tmp2 = tmp1.times(Vj).times(calDiagMatrixPower(Lj, 0.5));
-			Matrix Uq = null;
-			tmpSVD = tmp2.transpose().svd();
-			Uq = tmpSVD.getV();
-			Matrix Sq = setSingularValue(tmpSVD.getSingularValues(), Uq.getRowDimension());
+			Matrix Uq = new Matrix(tmp2.getRowDimension(), tmp2.getRowDimension());
+			Matrix Sq = new Matrix(tmp2.getRowDimension(), tmp2.getRowDimension());
+			
+//			computeSVDByEJML(tmp2.transpose(), Uq, Sq);
+//			System.out.println("uq1:");
+//			Uq.print(Uq.getRowDimension(), Uq.getColumnDimension());
+
+			if(tmp2.getColumnDimension()>tmp2.getRowDimension()){
+				tmpSVD = tmp2.transpose().svd();
+				Uq = tmpSVD.getV();
+			} else{
+				tmpSVD = tmp2.svd();
+				Uq = tmpSVD.getU();
+			}
+			
+//			System.out.println("uq2:");
+//			Uq.print(Uq.getRowDimension(), Uq.getColumnDimension());
+			Sq = getSingularValue(tmpSVD.getSingularValues());
 			
 			Matrix Identity = Matrix.identity(Sq.getRowDimension(), Sq.getColumnDimension());
 			// P^{-1} = (V_i*S_i^{1/2}*Uq)'
@@ -140,30 +160,46 @@ public class MatrixMerge {
 
 			System.out.println("my:");
 			mergedMatrix.print(nColumn, nColumn); 		
-			tmp2 = matrixs[num+1].transpose().times(matrixs[num+1]);
-//			num++;
+//			tmp2 = matrixs[num+1].transpose().times(matrixs[num+1]);
+//			System.out.println("correct1:");
+//			matrixs[num].transpose().times(matrixs[num]).print(nColumn, nColumn);
+//			matrixs[num+1].transpose().times(matrixs[num+1]).print(nColumn, nColumn);
 //			tmp3.plusEquals(tmp2);
-			System.out.println("correct1:");
-			tmp3.print(nColumn, nColumn);
-			tmp2.print(nColumn, nColumn);
+//			num++;
 			
 			System.out.println("correct2:");
 			tmp1 = Vi.times(Li).times(Vi.transpose());
-			tmp1.print(nColumn, nColumn);
+			//tmp1.print(nColumn, nColumn);
 			tmp2 = Vj.times(Lj).times(Vj.transpose());
-			tmp2.print(nColumn, nColumn);
+			//tmp2.print(nColumn, nColumn);
 			tmp1.plus(tmp2).print(nColumn, nColumn);
+			//mergedMatrix = tmp1.plus(tmp2);
 			
 			// add svd merged result to queue (eigenvalue decomposition can also be used here)
+//			Matrix sMatrix = new Matrix(Li.getRowDimension(), Li.getColumnDimension());
+//			computeSVDByEJML(mergedMatrix, Vi, sMatrix);
 			tmpSVD = mergedMatrix.svd();
-			vQueue.add(tmpSVD.getV());
-			lQueue.add(tmpSVD.getS());
+			Matrix V = tmpSVD.getV();
+			int rank = V.getColumnDimension();
+			Matrix L = getSingularValue(tmpSVD.getSingularValues());
+			if(rank > L.getColumnDimension()){
+				rank = L.getColumnDimension();
+				V = reshape(V, V.getRowDimension(), rank);
+			}
+			vQueue.add(V);
+			lQueue.add(L);
+//			vQueue.add(Vi);
+//			lQueue.add(sMatrix);
 		}
 		// the V and S of the final merged matrix stored in vQueue and sQueue 
 		mergedMatrix.print(nColumn, nColumn);
 		return mergedMatrix;
 	}
 	
+	public Matrix getVMergedMatrix(){
+		Matrix vMergeMatrix = new Matrix(nColumn, nColumn, 0.0);
+		return vMergeMatrix;
+	}
 	
 	// calculate the Matrix through: M = CI + sum_i H_i*H_i'
 	public Matrix getDirectMatrix(){
@@ -191,6 +227,22 @@ public class MatrixMerge {
 		System.out.println(getOutputInfo(accuracy,time));
 		// output the result to file
 		outputResultToFile(accuracy, time);
+	}
+	
+	/**
+	 * 
+	 * @param V
+	 * @param L
+	 * @return
+	 */
+	private Matrix checkMatrixRank(Matrix V, Matrix L){
+		int vRank = V.getRowDimension();
+		int lRank = L.getRowDimension();
+		if(lRank < vRank){
+			System.out.println("This method cannot be used!");
+			return reshape(V, vRank, lRank);
+		}
+		return V;
 	}
 	
 	private int calAverageRow(){
@@ -228,7 +280,7 @@ public class MatrixMerge {
 		Matrix res = S.copy();
 		for (int i = 0; i < size; i++) {
 			element = res.get(i, i);
-			if(element != 0){
+			if(Math.abs(element) > 1e-8){
 				element = Math.pow(element, p);
 				res.set(i, i, element);
 			}
@@ -248,29 +300,77 @@ public class MatrixMerge {
 		int mergedNum = matrixs.length;
 		SingularValueDecomposition tmpSVD = null;
 		for (int i = 0; i < mergedNum; i++) {
-			tmpSVD = matrixs[i].svd();
-			Matrix V = tmpSVD.getV();
-			Matrix S = setSingularValue(tmpSVD.getSingularValues(), V.getRowDimension());
-			//V.times(S.times(S)).times(V.transpose()).print(nColumn, nColumn);
-			// Lambda = S' * S, S is diagonal matrix
-			Matrix L = S.times(S);
-			vQueue.add(V);
-			lQueue.add(L);
+			if(nColumn <= Math.min(calAverageRow(), calLastRow(calAverageRow()))){
+				tmpSVD = matrixs[i].svd();
+				Matrix V = tmpSVD.getV();
+				Matrix S = getSingularValue(tmpSVD.getSingularValues());
+				// Lambda = S' * S, S is diagonal matrix
+				Matrix L = S.times(S);
+				vQueue.add(V);
+				lQueue.add(L);
+			} else{
+				//Matrix V = new Matrix(nColumn, nColumn);
+				//Matrix S = new Matrix(nColumn, nColumn);
+				//computeSVDByEJML(matrixs[i], V, S);
+				tmpSVD = matrixs[i].transpose().svd();
+				Matrix V = tmpSVD.getU();
+				Matrix S = getSingularValue(tmpSVD.getSingularValues());
+				
+				Matrix L = S.times(S);
+				vQueue.add(V);
+				lQueue.add(L);
+			}
 		}
 	}
 	
-	private Matrix setSingularValue(double[] sValue,int dimension){
+	private void computeSVDByEJML(Matrix matrix, Matrix V, Matrix S){
+		SimpleMatrix tmp = new SimpleMatrix(matrix.getArray());
+		org.ejml.alg.dense.decomposition.SingularValueDecomposition svd = tmp.computeSVD();
+		Matrix64F V1 = svd.getV();
+		int row = V1.numRows;
+		if(row == nColumn){
+			for (int j = 0; j < row; j++) {
+				for (int j2 = 0; j2 < row; j2++) {
+					V.set(j, j2, V1.get(j, j2));
+				}
+			}
+			S.plusEquals(getSingularValue(svd.getSingularValues()));
+		} else {
+			System.out.println("EJML SVD error!");
+		}
+	}
+	
+	private Matrix getSingularValue(double[] sValue){
+		int dimension = sValue.length;
 		Matrix S = new Matrix(dimension, dimension);
-		int rank = sValue.length;
-		for (int i = 0; i < dimension; i++) {
-			if(i<rank){
-				S.set(i, i, sValue[i]);
+		int rank = 0;
+		for (rank = 0; rank < dimension; rank++) {
+			if(sValue[rank] > 1e-6){
+				S.set(rank, rank, sValue[rank]);
 			}
 			else{
-				S.set(i, i, 0.0);
+				break;
 			}
 		}
+		if(rank < dimension){
+			dimension = rank;
+			S = reshape(S, rank, rank);
+		}
 		return S;
+	}
+	
+	private Matrix reshape(Matrix matrix, int row, int col){
+		Matrix reMatrix = new Matrix(row, col);
+		int[] rowArr = new int[row];
+		int[] colArr = new int[col];
+		for (int i = 0; i < row; i++) {
+			rowArr[i] = i;
+		}
+		for (int i = 0; i < col; i++) {
+			colArr[i] = i;
+		}
+		reMatrix = matrix.getMatrix(rowArr, colArr);
+		return reMatrix;
 	}
 	
 	private boolean isTransposed(){
