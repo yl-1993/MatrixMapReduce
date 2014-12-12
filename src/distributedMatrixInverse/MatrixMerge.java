@@ -161,7 +161,7 @@ public class MatrixMerge {
 				lQueue.add(L);
 			}
 			// the V and S of the final merged matrix stored in vQueue and sQueue 
-			mergedMatrix.print(nColumn, nColumn);
+			//mergedMatrix.print(nColumn, nColumn);
 			return mergedMatrix;
 		} catch(Exception e){
 			System.out.println(e);
@@ -186,12 +186,9 @@ public class MatrixMerge {
 				// queue size >= 2
 				Matrix Vi = vQueue.poll();
 				Matrix Li = lQueue.poll();
-				Vi = checkMatrixRank(Vi,Li);
 				Matrix Vj = vQueue.poll();
 				Matrix Lj = lQueue.poll();
-				Vj = checkMatrixRank(Vj,Lj);
 				
-				System.out.println("correct2:");
 				Matrix m1 = Vi.times(Li).times(Vi.transpose());
 				Matrix m2 = Vj.times(Lj).times(Vj.transpose());
 				vmergedMatrix = m1.plus(m2);
@@ -209,7 +206,7 @@ public class MatrixMerge {
 				lQueue.add(L);
 			}
 			// the V and S of the final merged matrix stored in vQueue and sQueue 
-			vmergedMatrix.print(nColumn, nColumn);
+			//vmergedMatrix.print(nColumn, nColumn);
 			return vmergedMatrix;
 		} catch(Exception e){
 			System.out.println(e);
@@ -221,12 +218,10 @@ public class MatrixMerge {
 	public Matrix getDirectMatrix(){
 		Matrix directMatrix = new Matrix(nColumn, nColumn, 0.0);
 		int mergedNum = matrixs.length;
-		System.out.println("direct:");
 		for (int i = 0; i < mergedNum; i++) {
 			directMatrix.plusEquals((matrixs[i].transpose()).times(matrixs[i]));
-			directMatrix.print(nColumn, nColumn);
 		}
-		directMatrix.print(nColumn, nColumn);
+		//directMatrix.print(nColumn, nColumn);
 		return directMatrix;
 	}
 	
@@ -245,6 +240,7 @@ public class MatrixMerge {
 				- getDirectMatrix().normF());
 		// output the result to console
 		System.out.println(getOutputInfo(accuracy,time));
+		System.out.println("---------------------------");
 		// output the result to file
 		outputResultToFile(accuracy, time);
 	}
@@ -257,13 +253,15 @@ public class MatrixMerge {
 	 * @throws Exception 
 	 */
 	private Matrix checkMatrixRank(Matrix V, Matrix L) throws Exception{
-		int vRank = V.getRowDimension();
+		int vRank = Math.min(V.getRowDimension(), V.getColumnDimension());
 		int lRank = L.getRowDimension();
 		if(lRank < vRank){
 			String errString = "Matrix are not positive definite!\r\n";
+			System.out.println("Error: "+errString);
 			outputResultToFile(errString);
-			throw new Exception(errString);
-			//return reshape(V, vRank, lRank);
+			// Uncomment the next line if you want to terminate the program when errors happen.
+			//throw new Exception(errString);
+			return reshape(V, V.getRowDimension(), lRank);
 		}
 		return V;
 	}
