@@ -31,7 +31,7 @@ public class LocalEntry {
 	}
 	
 	private static void testCase3(){
-		// Row < Column but the H is not positive definite (each is 2*3 matrix)
+		// Row < Column but the H is not positive definite (each is 2*3 matrix, rank = 1)
 		double [][] ma = {{1,2,3},{2,4,6}};
 		double [][] mb = {{1,3,4},{2,6,8}};
 		double [][] mc = {{2,4,3},{4,8,6}};
@@ -44,7 +44,7 @@ public class LocalEntry {
 	}
 	
 	private static void testCase4(){
-		// Row > Column and the H is not positive definite
+		// Row < Column but the H is not positive definite (each is 2*3 matrix, rank = 2)
 		double [][] ma = {{1,2,3},{2,4,7}};
 		double [][] mb = {{1,3,4},{2,6,9}};
 		double [][] mc = {{2,4,3},{4,8,5}};
@@ -57,7 +57,7 @@ public class LocalEntry {
 	}
 	
 	private static void testCase5(){
-		// Row == Column but the H is not positive definite (each is 2*3 matrix)
+		// Row == Column but the H is not positive definite (each is 3*3 matrix)
 		double [][] ma = {{1,2,3},{2,4,6},{3,6,9}};
 		double [][] mb = {{1,3,4},{2,6,8},{3,9,12}};
 		double [][] mc = {{2,4,3},{4,8,6},{6,12,9}};
@@ -84,7 +84,7 @@ public class LocalEntry {
 	
 	private static void testCase7(){
 		// Large random matrix (total row = 100000, col = 1000, computers = 3)
-		MatrixMerge matrixMerge = new MatrixMerge(100000, 1000, 3);
+		MatrixMerge matrixMerge = new MatrixMerge(100000, 100, 3);
 		matrixMerge.compareMatrixResult();
 	}
 	
@@ -96,6 +96,6 @@ public class LocalEntry {
 		testCase4();
 		testCase5();
 		testCase6();
-		//testCase7();
+		testCase7();
 	}
 }

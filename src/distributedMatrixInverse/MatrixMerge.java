@@ -253,7 +253,7 @@ public class MatrixMerge {
 	 * @throws Exception 
 	 */
 	private Matrix checkMatrixRank(Matrix V, Matrix L) throws Exception{
-		int vRank = Math.min(V.getRowDimension(), V.getColumnDimension());
+		int vRank = V.getRowDimension();
 		int lRank = L.getRowDimension();
 		if(lRank < vRank){
 			String errString = "Matrix are not positive definite!\r\n";
