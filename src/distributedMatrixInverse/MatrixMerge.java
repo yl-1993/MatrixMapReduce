@@ -23,7 +23,6 @@ public class MatrixMerge {
 	private int nRow = 9;
 	private int nColumn = 2;
 	private int nNodes = 3;
-	String inputFileName = "input.txt";
 	String logFileName = "log.txt";
 	private Matrix[] matrixs;
 	
@@ -53,10 +52,12 @@ public class MatrixMerge {
 		}
 	}
 	
-	public MatrixMerge(Matrix[] matrixList, int node) {
+	public MatrixMerge(Matrix[] matrixList, int row, int column, int node) {
 		if(node >= 1 && matrixList.length >= 1){
 			// TODO: check the dimension of the input matrix
 			matrixs = matrixList;
+			nRow = row;
+			nColumn = column;
 			nNodes = node;
 		}
 		else{
@@ -109,96 +110,111 @@ public class MatrixMerge {
 		}
 	}
 	
-	////////////////////////////////
-	// This function has been set as public
-	// you can get the merged result from outside
+
 	public Matrix getMergedMatrix(){
-		Matrix mergedMatrix = new Matrix(nColumn, nColumn, 0.0);
-		SingularValueDecomposition tmpSVD = null;
-		Queue<Matrix> vQueue = new LinkedList<Matrix>();
-		Queue<Matrix> lQueue = new LinkedList<Matrix>();
-		// add each svd result to queue
-		addSVDResultToQueue(vQueue, lQueue);
-		// merge until one left
-		int num = 0;
-		Matrix tmp3 = matrixs[num].transpose().times(matrixs[num]);
-		while(vQueue.size() > 1){
-			// queue size >= 2
-			Matrix Vi = vQueue.poll();
-			Matrix Li = lQueue.poll();
-			Vi = checkMatrixRank(Vi,Li);
-			Matrix Vj = vQueue.poll();
-			Matrix Lj = lQueue.poll();
-			Vj = checkMatrixRank(Vj,Lj);
-			// Uq = svd(S_i^{-1/2}*V_i'*V_j*S_j^{1/2})
-			Matrix tmp1 = calDiagMatrixPower(Li,-0.5).times(Vi.transpose());
-			Matrix tmp2 = tmp1.times(Vj).times(calDiagMatrixPower(Lj, 0.5));
-			Matrix Uq = new Matrix(tmp2.getRowDimension(), tmp2.getRowDimension());
-			Matrix Sq = new Matrix(tmp2.getRowDimension(), tmp2.getRowDimension());
-			
-//			computeSVDByEJML(tmp2.transpose(), Uq, Sq);
-//			System.out.println("uq1:");
-//			Uq.print(Uq.getRowDimension(), Uq.getColumnDimension());
-
-			if(tmp2.getColumnDimension()>tmp2.getRowDimension()){
-				tmpSVD = tmp2.transpose().svd();
-				Uq = tmpSVD.getV();
-			} else{
-				tmpSVD = tmp2.svd();
-				Uq = tmpSVD.getU();
+		try{
+			Matrix mergedMatrix = new Matrix(nColumn, nColumn, 0.0);
+			SingularValueDecomposition tmpSVD = null;
+			Queue<Matrix> vQueue = new LinkedList<Matrix>();
+			Queue<Matrix> lQueue = new LinkedList<Matrix>();
+			// add each svd result to queue
+			addSVDResultToQueue(vQueue, lQueue);
+			// merge until one left
+			while(vQueue.size() > 1){
+				// queue size >= 2
+				Matrix Vi = vQueue.poll();
+				Matrix Li = lQueue.poll();
+				Vi = checkMatrixRank(Vi,Li);
+				Matrix Vj = vQueue.poll();
+				Matrix Lj = lQueue.poll();
+				Vj = checkMatrixRank(Vj,Lj);
+				// Q = S_i^{-1/2}*V_i'*V_j*S_j^{1/2})
+				Matrix Q = calDiagMatrixPower(Li,-0.5).times(Vi.transpose()).times(Vj).times(calDiagMatrixPower(Lj, 0.5));
+				Matrix Uq = new Matrix(Q.getRowDimension(), Q.getRowDimension());
+				Matrix Sq = new Matrix(Q.getRowDimension(), Q.getRowDimension());
+				// Uq = svd(Q)
+				if(Q.getColumnDimension()>Q.getRowDimension()){
+					tmpSVD = Q.transpose().svd();
+					Uq = tmpSVD.getV();
+				} else{
+					tmpSVD = Q.svd();
+					Uq = tmpSVD.getU();
+				}
+				
+				Sq = getSingularValue(tmpSVD.getSingularValues());
+				
+				Matrix Identity = Matrix.identity(Sq.getRowDimension(), Sq.getColumnDimension());
+				// P^{-1} = (V_i*S_i^{1/2}*Uq)'
+				Matrix P = (Vi.times(calDiagMatrixPower(Li, 0.5)).times(Uq)).transpose();
+				// M_{ij} = (P^{-1})'*(I+S_q*S_q')*P^{-1}
+				mergedMatrix = (P.transpose()).times(Identity.plus(Sq.times(Sq))).times(P);
+				// add svd merged result to queue (eigenvalue decomposition can also be used here)
+				tmpSVD = mergedMatrix.svd();
+				Matrix V = tmpSVD.getV();
+				int rank = V.getColumnDimension();
+				Matrix L = getSingularValue(tmpSVD.getSingularValues());
+				if(rank > L.getColumnDimension()){
+					rank = L.getColumnDimension();
+					V = reshape(V, V.getRowDimension(), rank);
+				}
+				vQueue.add(V);
+				lQueue.add(L);
 			}
-			
-//			System.out.println("uq2:");
-//			Uq.print(Uq.getRowDimension(), Uq.getColumnDimension());
-			Sq = getSingularValue(tmpSVD.getSingularValues());
-			
-			Matrix Identity = Matrix.identity(Sq.getRowDimension(), Sq.getColumnDimension());
-			// P^{-1} = (V_i*S_i^{1/2}*Uq)'
-			Matrix P = (Vi.times(calDiagMatrixPower(Li, 0.5)).times(Uq)).transpose();
-			// M_{ij} = (P^{-1})'*(I+S_q*S_q')*P^{-1}
-			mergedMatrix = (P.transpose()).times(Identity.plus(Sq.times(Sq))).times(P);
-
-			System.out.println("my:");
-			mergedMatrix.print(nColumn, nColumn); 		
-//			tmp2 = matrixs[num+1].transpose().times(matrixs[num+1]);
-//			System.out.println("correct1:");
-//			matrixs[num].transpose().times(matrixs[num]).print(nColumn, nColumn);
-//			matrixs[num+1].transpose().times(matrixs[num+1]).print(nColumn, nColumn);
-//			tmp3.plusEquals(tmp2);
-//			num++;
-			
-			System.out.println("correct2:");
-			tmp1 = Vi.times(Li).times(Vi.transpose());
-			//tmp1.print(nColumn, nColumn);
-			tmp2 = Vj.times(Lj).times(Vj.transpose());
-			//tmp2.print(nColumn, nColumn);
-			tmp1.plus(tmp2).print(nColumn, nColumn);
-			//mergedMatrix = tmp1.plus(tmp2);
-			
-			// add svd merged result to queue (eigenvalue decomposition can also be used here)
-//			Matrix sMatrix = new Matrix(Li.getRowDimension(), Li.getColumnDimension());
-//			computeSVDByEJML(mergedMatrix, Vi, sMatrix);
-			tmpSVD = mergedMatrix.svd();
-			Matrix V = tmpSVD.getV();
-			int rank = V.getColumnDimension();
-			Matrix L = getSingularValue(tmpSVD.getSingularValues());
-			if(rank > L.getColumnDimension()){
-				rank = L.getColumnDimension();
-				V = reshape(V, V.getRowDimension(), rank);
-			}
-			vQueue.add(V);
-			lQueue.add(L);
-//			vQueue.add(Vi);
-//			lQueue.add(sMatrix);
+			// the V and S of the final merged matrix stored in vQueue and sQueue 
+			mergedMatrix.print(nColumn, nColumn);
+			return mergedMatrix;
+		} catch(Exception e){
+			System.out.println(e);
+			return null;
 		}
-		// the V and S of the final merged matrix stored in vQueue and sQueue 
-		mergedMatrix.print(nColumn, nColumn);
-		return mergedMatrix;
 	}
 	
+	/**
+	 * M = \sum_i^K V_i\Lambda_i V_i^T
+	 * @return
+	 */
 	public Matrix getVMergedMatrix(){
-		Matrix vMergeMatrix = new Matrix(nColumn, nColumn, 0.0);
-		return vMergeMatrix;
+		try{
+			Matrix vmergedMatrix = new Matrix(nColumn, nColumn, 0.0);
+			SingularValueDecomposition tmpSVD = null;
+			Queue<Matrix> vQueue = new LinkedList<Matrix>();
+			Queue<Matrix> lQueue = new LinkedList<Matrix>();
+			// add each svd result to queue
+			addSVDResultToQueue(vQueue, lQueue);
+			// merge until one left
+			while(vQueue.size() > 1){
+				// queue size >= 2
+				Matrix Vi = vQueue.poll();
+				Matrix Li = lQueue.poll();
+				Vi = checkMatrixRank(Vi,Li);
+				Matrix Vj = vQueue.poll();
+				Matrix Lj = lQueue.poll();
+				Vj = checkMatrixRank(Vj,Lj);
+				
+				System.out.println("correct2:");
+				Matrix m1 = Vi.times(Li).times(Vi.transpose());
+				Matrix m2 = Vj.times(Lj).times(Vj.transpose());
+				vmergedMatrix = m1.plus(m2);
+				
+				// add svd merged result to queue (eigenvalue decomposition can also be used here)
+				tmpSVD = vmergedMatrix.svd();
+				Matrix V = tmpSVD.getV();
+				int rank = V.getColumnDimension();
+				Matrix L = getSingularValue(tmpSVD.getSingularValues());
+				if(rank > L.getColumnDimension()){
+					rank = L.getColumnDimension();
+					V = reshape(V, V.getRowDimension(), rank);
+				}
+				vQueue.add(V);
+				lQueue.add(L);
+			}
+			// the V and S of the final merged matrix stored in vQueue and sQueue 
+			vmergedMatrix.print(nColumn, nColumn);
+			return vmergedMatrix;
+		} catch(Exception e){
+			System.out.println(e);
+			return null;
+		}
 	}
 	
 	// calculate the Matrix through: M = CI + sum_i H_i*H_i'
@@ -214,6 +230,10 @@ public class MatrixMerge {
 		return directMatrix;
 	}
 	
+	/**
+	 * Accuracy is defined as  Frobenius norm difference between merged matrix and directly computed matrix
+	 * Time is the running time of merging algorithm
+	 */
 	public void compareMatrixResult(){
 		// record the start time
 		long startTime = System.nanoTime();
@@ -234,13 +254,16 @@ public class MatrixMerge {
 	 * @param V
 	 * @param L
 	 * @return
+	 * @throws Exception 
 	 */
-	private Matrix checkMatrixRank(Matrix V, Matrix L){
+	private Matrix checkMatrixRank(Matrix V, Matrix L) throws Exception{
 		int vRank = V.getRowDimension();
 		int lRank = L.getRowDimension();
 		if(lRank < vRank){
-			System.out.println("This method cannot be used!");
-			return reshape(V, vRank, lRank);
+			String errString = "Matrix are not positive definite!\r\n";
+			outputResultToFile(errString);
+			throw new Exception(errString);
+			//return reshape(V, vRank, lRank);
 		}
 		return V;
 	}
@@ -280,19 +303,19 @@ public class MatrixMerge {
 		Matrix res = S.copy();
 		for (int i = 0; i < size; i++) {
 			element = res.get(i, i);
-			if(Math.abs(element) > 1e-8){
+			if(Math.abs(element) > 1e-10){
 				element = Math.pow(element, p);
 				res.set(i, i, element);
 			}
 			else{
-				break; // others eigen values are zero
+				break; // others eigen values below zero
 			}
 		}
 		return res;
 	}
 	
 	/**
-	 * 
+	 * Add svd result to queue
 	 * @param vQueue
 	 * @param lQueue
 	 */
@@ -304,7 +327,7 @@ public class MatrixMerge {
 				tmpSVD = matrixs[i].svd();
 				Matrix V = tmpSVD.getV();
 				Matrix S = getSingularValue(tmpSVD.getSingularValues());
-				// Lambda = S' * S, S is diagonal matrix
+				// Lambda = S' * S,  (S is diagonal matrix)
 				Matrix L = S.times(S);
 				vQueue.add(V);
 				lQueue.add(L);
@@ -323,6 +346,13 @@ public class MatrixMerge {
 		}
 	}
 	
+	/**
+	 * Use EJML package to compute the SVD of matrix
+	 * SVD computation in EJML is quicker than that in JAMA
+	 * @param matrix
+	 * @param V
+	 * @param S
+	 */
 	private void computeSVDByEJML(Matrix matrix, Matrix V, Matrix S){
 		SimpleMatrix tmp = new SimpleMatrix(matrix.getArray());
 		org.ejml.alg.dense.decomposition.SingularValueDecomposition svd = tmp.computeSVD();
@@ -396,7 +426,22 @@ public class MatrixMerge {
 		try {
 			String content = getOutputInfo(accuracy, time);
 			FileWriter writer = new FileWriter(logFileName, true);
-			writer.write(content);
+			String pre = "##### matrixMerged-log-"+getLogDate() + " begin #####\r\n";
+			String suf = "##### matrixMerged-log-"+getLogDate() + " end #####\r\n\r\n";
+			writer.write(pre+content+suf);
+			writer.close();
+		}catch (IOException e){
+			e.printStackTrace();
+			
+		}
+	}
+	
+	private void outputResultToFile(String content){
+		try {
+			FileWriter writer = new FileWriter(logFileName, true);
+			String pre = "##### matrixMerged-log-"+getLogDate() + " begin #####\r\n";
+			String suf = "##### matrixMerged-log-"+getLogDate() + " end #####\r\n\r\n";
+			writer.write(pre+content+suf);
 			writer.close();
 		}catch (IOException e){
 			e.printStackTrace();
@@ -405,13 +450,11 @@ public class MatrixMerge {
 	}
 	
 	private String getOutputInfo(double accuracy, double time){
-		String content = "##### matrixMerged-log-"+getLogDate() + " begin #####\r\n" + 
-							"nRow:\t\t"+ nRow + "\r\n"+ "nColumn:\t"+ nColumn + 
+		String content = 	"nRow:\t\t"+ nRow + "\r\n"+ "nColumn:\t"+ nColumn + 
 							"\r\n"+"nComputer:\t"+ nNodes +  
 							"\r\n"+"aveRow:\t\t"+ calAverageRow() +
 							"\r\n"+"lastRow:\t"+ calLastRow(calAverageRow()) + "\r\n"+ 
-							"Accuracy:\t"+ accuracy + "\r\n"+"Time:\t\t" + time + "ms"+ "\r\n" + 
-							"##### matrixMerged-log-"+getLogDate() + " end #####\r\n\r\n";
+							"Accuracy:\t"+ accuracy + "\r\n"+"Time:\t\t" + time + "ms"+ "\r\n";
 		return content;
 	}
 	

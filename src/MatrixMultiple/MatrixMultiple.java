@@ -20,6 +20,14 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
+/**
+ * Input: a list of (key,value) pairs
+Map:   apply a function f to all pairs
+Reduce:apply a function g to all values with key k
+Output:a list of (key,value) pairs
+ * @author LY
+ *
+ */
 public class MatrixMultiple {
      public static final String CONTROL_I = "\u0009";
      public static final int MATRIX_I = 4;
